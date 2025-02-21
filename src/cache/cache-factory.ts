@@ -1,6 +1,7 @@
 import { Cache, CacheConfig } from '../types/cache';
 import { RedisCache } from './redis-cache';
-import IORedis from 'ioredis';
+import { createClient } from 'redis';
+import type { RedisClientType } from 'redis';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -10,7 +11,7 @@ export type CacheType = 'redis';
 export class CacheFactory {
   private static instance: CacheFactory;
   private cacheInstances: Map<string, Cache>;
-  private redisClient: IORedis | null = null;
+  private redisClient: RedisClientType | null = null;
 
   private constructor() {
     this.cacheInstances = new Map();
@@ -23,13 +24,15 @@ export class CacheFactory {
     return CacheFactory.instance;
   }
 
-  public async connectToRedis(): Promise<IORedis> {
+  public async connectToRedis(): Promise<RedisClientType> {
     if (!this.redisClient) {
       console.log(`Connecting to redis ${process.env.REDIS_HOST}`);
 
-      this.redisClient = new IORedis({
-        host: process.env.REDIS_HOST,
-        port: Number(process.env.REDIS_PORT),
+      this.redisClient = createClient({
+        socket: {
+          host: process.env.REDIS_HOST,
+          port: Number(process.env.REDIS_PORT),
+        },
         password: process.env.REDIS_PASSWORD,
       });
 
@@ -43,11 +46,14 @@ export class CacheFactory {
         this.redisClient = null;
       });
 
+      // Connect to redis
+      await this.redisClient.connect();
+
       // Check if redis is connected
       try {
         await this.redisClient.ping();
       } catch (err) {
-        this.redisClient.disconnect();
+        await this.redisClient.disconnect();
         this.redisClient = null;
         throw new Error('Error in connecting to redis');
       }
@@ -56,7 +62,7 @@ export class CacheFactory {
     return this.redisClient;
   }
 
-  public getRedisClient(): IORedis {
+  public getRedisClient(): RedisClientType {
     if (!this.redisClient) {
       throw new Error('Redis client not initialized. Call connectToRedis() first.');
     }

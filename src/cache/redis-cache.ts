@@ -1,16 +1,16 @@
-import IORedis from 'ioredis';
+import type { RedisClientType } from 'redis';
 import { Cache, CacheConfig, CacheStats, PriceChange } from '../types/cache';
 import { Product } from '../types/product';
-import { getRedisClient } from '../utils/redis';
+import { CacheFactory } from './cache-factory';
 
 export class RedisCache implements Cache {
-  private client: IORedis;
+  private client: RedisClientType;
   private stats: CacheStats;
   private readonly defaultTTL: number;
 
   constructor(config: CacheConfig = {}) {
     const { ttl = 3600 } = config;
-    this.client = getRedisClient();
+    this.client = CacheFactory.getInstance().getRedisClient();
     this.defaultTTL = ttl;
     this.stats = {
       hits: 0,
@@ -27,7 +27,7 @@ export class RedisCache implements Cache {
 
   async set(key: string, value: any, ttl: number = this.defaultTTL): Promise<void> {
     const serializedValue = JSON.stringify(value);
-    await this.client.setex(key, ttl, serializedValue);
+    await this.client.setEx(key, ttl, serializedValue);
     this.stats.keys++;
   }
 
@@ -49,7 +49,7 @@ export class RedisCache implements Cache {
   }
 
   async clear(): Promise<void> {
-    await this.client.flushall();
+    await this.client.flushAll();
     this.stats.keys = 0;
   }
 

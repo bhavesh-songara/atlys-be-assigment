@@ -240,8 +240,20 @@ export class ProductScraper {
       // Compare with existing products using Redis
       await this.compareWithExisting(products);
 
-      // Save products using storage system
-      await this.storage.save(products);
+      // Load existing products
+      const existingProducts = await this.storage.load();
+
+      // Create a map of existing products by slug for quick lookup
+      const existingProductMap = new Map(existingProducts.map((p) => [p.slug, p]));
+
+      // Update only the products we've scraped, keep others unchanged
+      products.forEach((product) => {
+        existingProductMap.set(product.slug, product);
+      });
+
+      // Convert map back to array and save
+      const updatedProducts = Array.from(existingProductMap.values());
+      await this.storage.save(updatedProducts);
 
       // Calculate final statistics
       this.stats.scrapeDurationMs = Date.now() - this.startTime;
