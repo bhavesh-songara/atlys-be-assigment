@@ -5,11 +5,16 @@ import { Product, ScraperConfig } from '../types/product';
 import { HttpClient } from '../utils/http-client';
 import { StorageFactory } from '../storage/storage-factory';
 import { Storage, ValidationError } from '../types/storage';
+import { NotificationFactory } from '../notifications/notification-factory';
+import { Notification, NotificationStats } from '../types/notification';
 
 export class ProductScraper {
   private config: ScraperConfig;
   private httpClient: HttpClient;
   private storage: Storage;
+  private notification: Notification;
+  private stats: NotificationStats;
+  private startTime: number;
 
   constructor(config: ScraperConfig) {
     this.config = {
@@ -32,6 +37,26 @@ export class ProductScraper {
       basePath: process.cwd(),
       pretty: true,
     });
+
+    // Initialize notification
+    const notificationFactory = NotificationFactory.getInstance();
+    this.notification = notificationFactory.getNotification('console', {
+      level: 'verbose',
+      colored: true,
+    });
+
+    // Initialize statistics
+    this.stats = {
+      totalProducts: 0,
+      newProducts: 0,
+      updatedProducts: 0,
+      failedProducts: 0,
+      scrapeDurationMs: 0,
+      pagesScraped: 0,
+      imagesDownloaded: 0,
+    };
+
+    this.startTime = Date.now();
 
     // Ensure image directory exists
     if (this.config.imageDownloadPath) {
@@ -80,10 +105,33 @@ export class ProductScraper {
       const filepath = path.join(this.config.imageDownloadPath!, filename);
 
       fs.writeFileSync(filepath, buffer);
+      this.stats.imagesDownloaded++;
       return filename;
     } catch (error) {
-      console.error(`Failed to download image from ${imageUrl}:`, error);
+      this.notification.error(`Failed to download image from ${imageUrl}`);
       return '';
+    }
+  }
+
+  private async compareWithExisting(newProducts: Product[]): Promise<void> {
+    try {
+      const existingProducts = await this.storage.load();
+      const existingProductMap = new Map(existingProducts.map((p) => [p.product_title, p]));
+
+      for (const newProduct of newProducts) {
+        const existingProduct = existingProductMap.get(newProduct.product_title) || null;
+        if (!existingProduct) {
+          this.stats.newProducts++;
+        } else if (
+          existingProduct.product_price !== newProduct.product_price ||
+          existingProduct.path_to_image !== newProduct.path_to_image
+        ) {
+          this.stats.updatedProducts++;
+        }
+        this.notification.productUpdate(existingProduct, newProduct);
+      }
+    } catch (error) {
+      this.notification.warning('Could not compare with existing products');
     }
   }
 
@@ -93,11 +141,13 @@ export class ProductScraper {
     const allProducts: Product[] = [];
 
     while (currentUrl && currentPage <= (this.config.maxPages || 1)) {
+      let pageHtml = '';
       try {
-        console.log(`Scraping page ${currentPage}: ${currentUrl}`);
-        const html = await this.httpClient.get(currentUrl);
+        this.notification.info(`Scraping page ${currentPage}: ${currentUrl}`);
+        pageHtml = await this.httpClient.get(currentUrl);
 
-        const products = this.getProducts(html);
+        const products = this.getProducts(pageHtml);
+        this.stats.pagesScraped++;
 
         // Download images if path is specified
         if (this.config.imageDownloadPath) {
@@ -111,7 +161,7 @@ export class ProductScraper {
         allProducts.push(...products);
 
         // Get next page URL
-        currentUrl = this.getNextPageUrl(html) || '';
+        currentUrl = this.getNextPageUrl(pageHtml) || '';
         currentPage++;
 
         // Add delay between pages
@@ -119,7 +169,8 @@ export class ProductScraper {
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       } catch (error) {
-        console.error(`Error scraping page ${currentPage}:`, error);
+        this.notification.error(`Error scraping page ${currentPage}`);
+        this.stats.failedProducts += this.getProducts(pageHtml).length;
         break;
       }
     }
@@ -130,18 +181,28 @@ export class ProductScraper {
   async run(): Promise<void> {
     try {
       const products = await this.scrapeProducts();
+      this.stats.totalProducts = products.length;
+
+      // Compare with existing products
+      await this.compareWithExisting(products);
 
       // Save products using storage system
       await this.storage.save(products);
 
-      console.log(`Scraped ${products.length} products. Results saved successfully.`);
+      // Calculate final statistics
+      this.stats.scrapeDurationMs = Date.now() - this.startTime;
+
+      // Show final statistics
+      this.notification.stats(this.stats);
+      this.notification.success(`Scraped ${products.length} products successfully`);
     } catch (error: unknown) {
       if (error instanceof ValidationError) {
-        console.error('Validation errors:', error.errors);
+        this.notification.error('Validation errors occurred');
+        error.errors.forEach((e) => this.notification.error(`${e.field}: ${e.message}`));
       } else if (error instanceof Error) {
-        console.error('Error running scraper:', error.message);
+        this.notification.error(`Scraping failed: ${error.message}`);
       } else {
-        console.error('Unknown error occurred while running scraper');
+        this.notification.error('An unknown error occurred while scraping');
       }
       throw error;
     }
