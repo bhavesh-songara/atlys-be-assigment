@@ -37,3 +37,9 @@ docs/tasks.md
 # Lock files
 yarn.lock
 package-lock.json
+
+# Images
+images/
+
+# Products
+products.json
