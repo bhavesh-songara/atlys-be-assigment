@@ -15,7 +15,7 @@ export abstract class BaseNotification implements Notification {
   protected formatPrice(price: number): string {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
     }).format(price);
   }
 

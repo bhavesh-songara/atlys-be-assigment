@@ -7,12 +7,15 @@ import { StorageFactory } from '../storage/storage-factory';
 import { Storage, ValidationError } from '../types/storage';
 import { NotificationFactory } from '../notifications/notification-factory';
 import { Notification, NotificationStats } from '../types/notification';
+import { CacheFactory } from '../cache/cache-factory';
+import { Cache } from '../types/cache';
 
 export class ProductScraper {
   private config: ScraperConfig;
   private httpClient: HttpClient;
   private storage: Storage;
   private notification: Notification;
+  private cache!: Cache;
   private stats: NotificationStats;
   private startTime: number;
 
@@ -64,6 +67,25 @@ export class ProductScraper {
     }
   }
 
+  private async initializeCache(): Promise<void> {
+    const cacheFactory = CacheFactory.getInstance();
+    this.cache = await cacheFactory.getCache('redis', {
+      host: process.env.REDIS_HOST,
+      port: parseInt(process.env.REDIS_PORT || '6379'),
+      password: process.env.REDIS_PASSWORD,
+      ttl: parseInt(process.env.REDIS_TTL || '3600'),
+    });
+    await this.cache.init();
+  }
+
+  private getSlugFromUrl(url: string): string {
+    // Remove trailing slash if exists
+    const cleanUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+    // Get the last part of the URL
+    const parts = cleanUrl.split('/');
+    return parts[parts.length - 1];
+  }
+
   private getProducts(html: string): Product[] {
     const dom = new JSDOM(html);
     const products: Product[] = [];
@@ -81,10 +103,16 @@ export class ProductScraper {
       const imageElement = productElement.querySelector('.mf-product-thumbnail a noscript img');
       const imagePath = imageElement?.getAttribute('src') || '';
 
+      const productUrlElement = productElement.querySelector('.mf-product-thumbnail a');
+      const productUrl = productUrlElement?.getAttribute('href') || '';
+      const slug = this.getSlugFromUrl(productUrl);
+
       products.push({
         product_title: title,
         product_price: parseFloat(price),
+        image_url: imagePath,
         path_to_image: imagePath,
+        slug: slug,
       });
     });
 
@@ -98,15 +126,26 @@ export class ProductScraper {
     return nextPageLink?.getAttribute('href') || null;
   }
 
-  private async downloadImage(imageUrl: string): Promise<string> {
-    try {
-      const buffer = await this.httpClient.downloadFile(imageUrl);
-      const filename = `${Date.now()}-${path.basename(imageUrl)}`;
-      const filepath = path.join(this.config.imageDownloadPath!, filename);
+  private generateImageFilename(imageUrl: string, slug: string): string {
+    const extension = path.extname(imageUrl);
+    return `${slug}${extension}`;
+  }
 
+  private async downloadImage(imageUrl: string, slug: string): Promise<string> {
+    try {
+      const filename = this.generateImageFilename(imageUrl, slug);
+      const filepath = path.join(this.config.imageDownloadPath!, filename);
+      const fullPath = path.resolve(filepath);
+
+      // Check if the image already exists
+      if (fs.existsSync(filepath)) {
+        return fullPath;
+      }
+
+      const buffer = await this.httpClient.downloadFile(imageUrl);
       fs.writeFileSync(filepath, buffer);
       this.stats.imagesDownloaded++;
-      return filename;
+      return fullPath;
     } catch (error) {
       this.notification.error(`Failed to download image from ${imageUrl}`);
       return '';
@@ -115,23 +154,35 @@ export class ProductScraper {
 
   private async compareWithExisting(newProducts: Product[]): Promise<void> {
     try {
-      const existingProducts = await this.storage.load();
-      const existingProductMap = new Map(existingProducts.map((p) => [p.product_title, p]));
-
       for (const newProduct of newProducts) {
-        const existingProduct = existingProductMap.get(newProduct.product_title) || null;
-        if (!existingProduct) {
+        const existingProductPrice = await this.cache.get<number>(newProduct.slug);
+
+        if (!existingProductPrice) {
           this.stats.newProducts++;
-        } else if (
-          existingProduct.product_price !== newProduct.product_price ||
-          existingProduct.path_to_image !== newProduct.path_to_image
-        ) {
+          await this.cache.set(newProduct.slug, newProduct.product_price);
+        } else if (existingProductPrice !== newProduct.product_price) {
           this.stats.updatedProducts++;
+          await this.cache.set(newProduct.slug, newProduct.product_price);
+          this.notification.productUpdate(
+            {
+              product_title: newProduct.product_title,
+              product_price: existingProductPrice,
+              image_url: newProduct.image_url,
+              path_to_image: newProduct.path_to_image,
+              slug: newProduct.slug,
+            },
+            {
+              product_title: newProduct.product_title,
+              product_price: newProduct.product_price,
+              image_url: newProduct.image_url,
+              path_to_image: newProduct.path_to_image,
+              slug: newProduct.slug,
+            }
+          );
         }
-        this.notification.productUpdate(existingProduct, newProduct);
       }
     } catch (error) {
-      this.notification.warning('Could not compare with existing products');
+      this.notification.warning('Could not compare with existing products in Redis');
     }
   }
 
@@ -152,8 +203,8 @@ export class ProductScraper {
         // Download images if path is specified
         if (this.config.imageDownloadPath) {
           for (const product of products) {
-            if (product.path_to_image) {
-              product.image_filename = await this.downloadImage(product.path_to_image);
+            if (product.image_url) {
+              product.path_to_image = await this.downloadImage(product.image_url, product.slug);
             }
           }
         }
@@ -180,10 +231,13 @@ export class ProductScraper {
 
   async run(): Promise<void> {
     try {
+      // Initialize Redis cache
+      await this.initializeCache();
+
       const products = await this.scrapeProducts();
       this.stats.totalProducts = products.length;
 
-      // Compare with existing products
+      // Compare with existing products using Redis
       await this.compareWithExisting(products);
 
       // Save products using storage system

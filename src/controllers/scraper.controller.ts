@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export class ScraperController {
-  private static getCache() {
+  private static async getCache() {
     const cacheFactory = CacheFactory.getInstance();
     return cacheFactory.getCache('redis', {
       host: process.env.REDIS_HOST,
@@ -42,7 +42,7 @@ export class ScraperController {
       const products = await storage.load();
 
       // Compare prices and update cache
-      const cache = ScraperController.getCache();
+      const cache = await ScraperController.getCache();
       const priceChanges = await cache.compareAndUpdatePrices(products);
 
       // Get cache statistics
@@ -71,7 +71,7 @@ export class ScraperController {
       const products = await storage.load();
 
       // Get cache statistics
-      const cache = ScraperController.getCache();
+      const cache = await ScraperController.getCache();
       const cacheStats = await cache.getStats();
 
       res.json({
@@ -94,7 +94,7 @@ export class ScraperController {
       await storage.clear();
 
       // Clear cache as well
-      const cache = ScraperController.getCache();
+      const cache = await ScraperController.getCache();
       await cache.clear();
 
       res.json({

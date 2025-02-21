@@ -1,8 +1,9 @@
 export interface Product {
   product_title: string;
   product_price: number;
-  path_to_image: string;
-  image_filename?: string;
+  image_url: string;
+  path_to_image?: string;
+  slug: string;
 }
 
 export interface ScraperConfig {

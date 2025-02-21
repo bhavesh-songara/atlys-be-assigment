@@ -14,14 +14,16 @@ async function main() {
     {
       product_title: 'Test Product 1',
       product_price: 99.99,
+      image_url: 'https://example.com/image1.jpg',
       path_to_image: 'https://example.com/image1.jpg',
-      image_filename: 'image1.jpg',
+      slug: 'test-product-1',
     },
     {
       product_title: 'Test Product 2',
       product_price: 149.99,
+      image_url: 'https://example.com/image2.jpg',
       path_to_image: 'https://example.com/image2.jpg',
-      image_filename: 'image2.jpg',
+      slug: 'test-product-2',
     },
   ];
 

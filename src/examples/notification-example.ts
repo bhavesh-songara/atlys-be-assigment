@@ -15,15 +15,17 @@ async function simulateProductUpdates() {
   const oldProduct: Product = {
     product_title: 'Dental Chair X1000',
     product_price: 1999.99,
+    image_url: 'https://example.com/old-image.jpg',
     path_to_image: 'https://example.com/old-image.jpg',
-    image_filename: 'old-image.jpg',
+    slug: 'dental-chair-x1000',
   };
 
   const newProduct: Product = {
     product_title: 'Dental Chair X1000',
     product_price: 1899.99,
+    image_url: 'https://example.com/new-image.jpg',
     path_to_image: 'https://example.com/new-image.jpg',
-    image_filename: 'new-image.jpg',
+    slug: 'dental-chair-x1000',
   };
 
   // Simulate scraping process
@@ -36,8 +38,9 @@ async function simulateProductUpdates() {
   notification.productUpdate(null, {
     product_title: 'New Dental Light LED-500',
     product_price: 599.99,
+    image_url: 'https://example.com/led-light.jpg',
     path_to_image: 'https://example.com/led-light.jpg',
-    image_filename: 'led-light.jpg',
+    slug: 'new-dental-light-led-500',
   });
 
   // Show some general notifications

@@ -59,17 +59,13 @@ export class RedisCache implements Cache {
 
   async compareAndUpdatePrices(products: Product[]): Promise<PriceChange[]> {
     const changes: PriceChange[] = [];
-    const priceKey = 'product_prices';
 
-    // Get cached prices
-    const cachedPricesStr = await this.get<Record<string, number>>(priceKey);
-    const cachedPrices = cachedPricesStr || {};
-
-    // Compare and collect changes
+    // Compare and collect changes using product URL as key
     for (const product of products) {
-      const oldPrice = cachedPrices[product.product_title];
+      const oldPriceStr = await this.get<number>(product.slug);
+      const oldPrice = oldPriceStr || null;
 
-      if (oldPrice !== undefined && oldPrice !== product.product_price) {
+      if (oldPrice !== null && oldPrice !== product.product_price) {
         const changePercentage = ((product.product_price - oldPrice) / oldPrice) * 100;
 
         changes.push({
@@ -80,12 +76,9 @@ export class RedisCache implements Cache {
         });
       }
 
-      // Update cached price
-      cachedPrices[product.product_title] = product.product_price;
+      // Update cached price using product URL as key
+      await this.set(product.slug, product.product_price);
     }
-
-    // Save updated prices
-    await this.set(priceKey, cachedPrices);
 
     return changes;
   }

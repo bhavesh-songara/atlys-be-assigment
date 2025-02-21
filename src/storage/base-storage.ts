@@ -19,10 +19,17 @@ export abstract class BaseStorage implements Storage {
       });
     }
 
-    if (!product.path_to_image) {
+    if (!product.image_url) {
       errors.push({
-        field: 'path_to_image',
-        message: 'Product image path is required',
+        field: 'image_url',
+        message: 'Product image URL is required',
+      });
+    }
+
+    if (!product.slug) {
+      errors.push({
+        field: 'slug',
+        message: 'Product slug is required',
       });
     }
 

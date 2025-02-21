@@ -1,11 +1,16 @@
 import { Cache, CacheConfig } from '../types/cache';
 import { RedisCache } from './redis-cache';
+import IORedis from 'ioredis';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 export type CacheType = 'redis';
 
 export class CacheFactory {
   private static instance: CacheFactory;
   private cacheInstances: Map<string, Cache>;
+  private redisClient: IORedis | null = null;
 
   private constructor() {
     this.cacheInstances = new Map();
@@ -18,14 +23,54 @@ export class CacheFactory {
     return CacheFactory.instance;
   }
 
-  public getCache(type: CacheType, config?: CacheConfig): Cache {
+  public async connectToRedis(): Promise<IORedis> {
+    if (!this.redisClient) {
+      console.log(`Connecting to redis ${process.env.REDIS_HOST}`);
+
+      this.redisClient = new IORedis({
+        host: process.env.REDIS_HOST,
+        port: Number(process.env.REDIS_PORT),
+        password: process.env.REDIS_PASSWORD,
+      });
+
+      this.redisClient.on('connect', () => {
+        console.log('Connected to redis');
+      });
+
+      this.redisClient.on('error', (err) => {
+        console.error('Redis connection error:', err);
+        this.redisClient?.disconnect();
+        this.redisClient = null;
+      });
+
+      // Check if redis is connected
+      try {
+        await this.redisClient.ping();
+      } catch (err) {
+        this.redisClient.disconnect();
+        this.redisClient = null;
+        throw new Error('Error in connecting to redis');
+      }
+    }
+
+    return this.redisClient;
+  }
+
+  public getRedisClient(): IORedis {
+    if (!this.redisClient) {
+      throw new Error('Redis client not initialized. Call connectToRedis() first.');
+    }
+    return this.redisClient;
+  }
+
+  public async getCache(type: CacheType, config?: CacheConfig): Promise<Cache> {
     const key = this.getCacheKey(type, config);
 
     if (!this.cacheInstances.has(key)) {
-      const cache = this.createCache(type, config);
+      const cache = await this.createCache(type, config);
       this.cacheInstances.set(key, cache);
       // Initialize cache
-      cache.init().catch((err) => console.error(`Failed to initialize ${type} cache:`, err));
+      await cache.init().catch((err) => console.error(`Failed to initialize ${type} cache:`, err));
     }
 
     return this.cacheInstances.get(key)!;
@@ -35,9 +80,10 @@ export class CacheFactory {
     return `${type}:${config?.host || 'localhost'}:${config?.port || 6379}`;
   }
 
-  private createCache(type: CacheType, config?: CacheConfig): Cache {
+  private async createCache(type: CacheType, config?: CacheConfig): Promise<Cache> {
     switch (type) {
       case 'redis':
+        await this.connectToRedis();
         return new RedisCache(config);
       default:
         throw new Error(`Unsupported cache type: ${type}`);
