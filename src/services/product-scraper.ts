@@ -69,7 +69,7 @@ export class ProductScraper {
     const products: Product[] = [];
     const document = dom.window.document;
 
-    const productElements = document.querySelectorAll('ul.products li');
+    const productElements = document.querySelectorAll('ul.products .product');
 
     productElements.forEach((productElement) => {
       const titleElement = productElement.querySelector('.addtocart-buynow-btn a');

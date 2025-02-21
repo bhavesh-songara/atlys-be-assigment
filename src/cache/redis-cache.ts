@@ -1,37 +1,33 @@
-import { createClient, RedisClientType } from 'redis';
+import IORedis from 'ioredis';
 import { Cache, CacheConfig, CacheStats, PriceChange } from '../types/cache';
 import { Product } from '../types/product';
+import { getRedisClient } from '../utils/redis';
 
 export class RedisCache implements Cache {
-  private client: RedisClientType;
+  private client: IORedis;
   private stats: CacheStats;
   private readonly defaultTTL: number;
 
   constructor(config: CacheConfig = {}) {
-    const { host = 'localhost', port = 6379, password, ttl = 3600 } = config;
-
-    this.client = createClient({
-      url: `redis://${password ? `:${password}@` : ''}${host}:${port}`,
-    });
-
+    const { ttl = 3600 } = config;
+    this.client = getRedisClient();
     this.defaultTTL = ttl;
     this.stats = {
       hits: 0,
       misses: 0,
       keys: 0,
     };
-
-    // Error handling
-    this.client.on('error', (err) => console.error('Redis Client Error:', err));
   }
 
   async init(): Promise<void> {
-    await this.client.connect();
+    // No need to connect here as we're using the shared Redis client
+    // that is already connected in server startup
+    return;
   }
 
   async set(key: string, value: any, ttl: number = this.defaultTTL): Promise<void> {
     const serializedValue = JSON.stringify(value);
-    await this.client.setEx(key, ttl, serializedValue);
+    await this.client.setex(key, ttl, serializedValue);
     this.stats.keys++;
   }
 
@@ -53,7 +49,7 @@ export class RedisCache implements Cache {
   }
 
   async clear(): Promise<void> {
-    await this.client.flushAll();
+    await this.client.flushall();
     this.stats.keys = 0;
   }
 
