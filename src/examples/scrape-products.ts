@@ -3,7 +3,7 @@ import { ProductScraper } from '../services/product-scraper';
 async function main() {
   const scraper = new ProductScraper({
     url: 'https://dentalstall.com/shop',
-    maxPages: 1, // Start with 1 page for testing
+    maxPages: 2, // Start with 1 page for testing
     maxRetries: 3,
     retryDelay: 1000,
     imageDownloadPath: './images',
