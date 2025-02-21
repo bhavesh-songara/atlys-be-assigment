@@ -1,6 +1,16 @@
 # Product Scraper API
 
-A web scraper application for products with secure API endpoints.
+A robust web scraper application for products with secure API endpoints, caching, and notifications.
+
+## Features
+
+- 🔒 Secure API endpoints with token authentication
+- 📦 JSON file storage for scraped products
+- 💾 Redis caching with price change detection
+- 🖼️ Automatic image downloading
+- 📊 Detailed scraping statistics
+- 🔄 Proxy support for scraping
+- 📝 Comprehensive logging and notifications
 
 ## Prerequisites
 
@@ -35,140 +45,27 @@ A web scraper application for products with secure API endpoints.
    REDIS_TTL=3600
    ```
 
-## Development
+## Quick Start
 
-To start the development server:
+1. Start the development server:
 
-```bash
-npm run dev
-```
+   ```bash
+   npm run dev
+   ```
 
-The server will start on port 3000 by default. You can change this by setting the `PORT` environment variable.
+2. Run the scraper example:
 
-## API Endpoints
+   ```bash
+   npm run scrape
+   ```
 
-All endpoints require authentication using the `x-api-key` header.
+3. Try other examples:
 
-### POST /api/scrape
-
-Start scraping products from a URL.
-
-Request body:
-
-```json
-{
-  "url": "https://example.com/products",
-  "maxPages": 2,
-  "proxy": "http://proxy-url:port" // optional
-}
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Scraping completed successfully",
-  "data": {
-    "totalProducts": 50,
-    "priceChanges": [
-      {
-        "productTitle": "Example Product",
-        "oldPrice": 99.99,
-        "newPrice": 89.99,
-        "changePercentage": -10.0
-      }
-    ],
-    "cacheStats": {
-      "hits": 45,
-      "misses": 5,
-      "keys": 50
-    }
-  }
-}
-```
-
-### GET /api/products
-
-Get all scraped products with pagination and sorting.
-
-Query Parameters:
-
-- `page` (optional): Page number (default: 1)
-- `limit` (optional): Items per page (default: 10, max: 100)
-- `sort` (optional): Sort order
-  - `price_asc`: Price ascending
-  - `price_desc`: Price descending
-  - `title_asc`: Title ascending
-  - `title_desc`: Title descending
-
-Response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "products": [...],
-    "total": 50,
-    "page": 1,
-    "totalPages": 5,
-    "cacheStats": {
-      "hits": 45,
-      "misses": 5,
-      "keys": 50
-    }
-  }
-}
-```
-
-### DELETE /api/products
-
-Clear all scraped products and cache.
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Products and cache cleared successfully"
-}
-```
-
-## Error Responses
-
-All endpoints return error responses in the following format:
-
-```json
-{
-  "success": false,
-  "errors": [
-    {
-      "field": "url",
-      "message": "Must be a valid URL"
-    }
-  ]
-}
-```
-
-## Authentication
-
-The API uses token-based authentication. Include the token in your requests:
-
-```bash
-curl -H "x-api-key: your-secure-api-token-here" http://localhost:3000/api/products
-```
-
-## Scripts
-
-- `npm start` - Start the production server
-- `npm run dev` - Start the development server
-- `npm run build` - Build the project
-- `npm run lint` - Run ESLint
-- `npm run format` - Format code with Prettier
-- `npm run scrape` - Run the scraper directly
-- `npm run storage-example` - Run storage system example
-- `npm run notification-example` - Run notification system example
-- `npm run cache-example` - Run cache system example
+   ```bash
+   npm run storage-example     # Storage system demo
+   npm run notification-example # Notification system demo
+   npm run cache-example      # Cache system demo
+   ```
 
 ## Project Structure
 
@@ -183,18 +80,91 @@ curl -H "x-api-key: your-secure-api-token-here" http://localhost:3000/api/produc
 │   ├── cache/         # Cache implementations
 │   ├── notifications/ # Notification system
 │   ├── types/         # TypeScript types
+│   ├── utils/         # Utility functions
+│   ├── examples/      # Example scripts
 │   ├── app.ts         # Express app setup
 │   └── server.ts      # Server entry point
-├── dist/              # Compiled output
+├── docs/             # Documentation
+│   ├── api.md        # API documentation
+│   └── configuration.md # Configuration guide
 └── package.json
 ```
 
-## Postman Collection
+## Available Scripts
 
-Import the `postman_collection.json` file into Postman to test the API endpoints. Make sure to set up the environment variables:
+- `npm start` - Start the production server
+- `npm run dev` - Start the development server
+- `npm run build` - Build the project
+- `npm run lint` - Run ESLint
+- `npm run format` - Format code with Prettier
+- `npm run scrape` - Run the scraper directly
+- `npm run storage-example` - Run storage system example
+- `npm run notification-example` - Run notification system example
+- `npm run cache-example` - Run cache system example
 
-- `base_url`: Your API base URL (e.g., `http://localhost:3000`)
-- `api_token`: Your API token from the `.env` file
+## Documentation
+
+- [API Documentation](docs/api.md)
+- [Configuration Guide](docs/configuration.md)
+
+## Example Usage
+
+### Using the API
+
+1. Start scraping products:
+
+   ```bash
+   curl -X POST http://localhost:3000/api/scrape \
+     -H "x-api-key: your-api-token" \
+     -H "Content-Type: application/json" \
+     -d '{"url": "https://example.com/products", "maxPages": 2}'
+   ```
+
+2. Get scraped products:
+
+   ```bash
+   curl http://localhost:3000/api/products \
+     -H "x-api-key: your-api-token"
+   ```
+
+3. Clear all products:
+
+   ```bash
+   curl -X DELETE http://localhost:3000/api/products \
+     -H "x-api-key: your-api-token"
+   ```
+
+### Using the Scraper Programmatically
+
+```typescript
+import { ProductScraper } from './services/product-scraper';
+
+const scraper = new ProductScraper({
+  url: 'https://example.com/products',
+  maxPages: 2,
+  imageDownloadPath: './images',
+});
+
+await scraper.run();
+```
+
+## Error Handling
+
+The application includes comprehensive error handling:
+
+- Input validation
+- Authentication checks
+- Rate limiting
+- Retry mechanisms for failed requests
+- Detailed error responses
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
