@@ -3,10 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import { Product, ScraperConfig } from '../types/product';
 import { HttpClient } from '../utils/http-client';
+import { StorageFactory } from '../storage/storage-factory';
+import { Storage, ValidationError } from '../types/storage';
 
 export class ProductScraper {
   private config: ScraperConfig;
   private httpClient: HttpClient;
+  private storage: Storage;
 
   constructor(config: ScraperConfig) {
     this.config = {
@@ -16,11 +19,19 @@ export class ProductScraper {
       imageDownloadPath: './images',
       ...config,
     };
+
     this.httpClient = new HttpClient(
       this.config.proxy,
       this.config.maxRetries,
       this.config.retryDelay
     );
+
+    // Initialize storage
+    const storageFactory = StorageFactory.getInstance();
+    this.storage = storageFactory.getStorage('json', {
+      basePath: process.cwd(),
+      pretty: true,
+    });
 
     // Ensure image directory exists
     if (this.config.imageDownloadPath) {
@@ -120,13 +131,18 @@ export class ProductScraper {
     try {
       const products = await this.scrapeProducts();
 
-      // Save results to JSON file
-      const outputPath = path.join(process.cwd(), 'products.json');
-      fs.writeFileSync(outputPath, JSON.stringify(products, null, 2));
+      // Save products using storage system
+      await this.storage.save(products);
 
-      console.log(`Scraped ${products.length} products. Results saved to ${outputPath}`);
-    } catch (error) {
-      console.error('Error running scraper:', error);
+      console.log(`Scraped ${products.length} products. Results saved successfully.`);
+    } catch (error: unknown) {
+      if (error instanceof ValidationError) {
+        console.error('Validation errors:', error.errors);
+      } else if (error instanceof Error) {
+        console.error('Error running scraper:', error.message);
+      } else {
+        console.error('Unknown error occurred while running scraper');
+      }
       throw error;
     }
   }
