@@ -13,26 +13,27 @@
             "key": "x-api-key",
             "value": "{{api_token}}",
             "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
           }
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"url\": \"https://dentalstall.com/shop\",\n    \"maxPages\": 2,\n    \"proxy\": null\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
+          "raw": "{\n    \"url\": \"https://dentalstall.com/shop\",\n    \"maxPages\": 2,\n    \"proxy\": null\n}"
         },
         "url": {
           "raw": "{{base_url}}/api/scrape",
           "host": ["{{base_url}}"],
           "path": ["api", "scrape"]
-        }
+        },
+        "description": "Start scraping products from a URL. The maxPages parameter is optional (default: 1) and must be between 1 and 100."
       }
     },
     {
-      "name": "Get Products",
+      "name": "Get Products (Default)",
       "request": {
         "method": "GET",
         "header": [
@@ -46,7 +47,44 @@
           "raw": "{{base_url}}/api/products",
           "host": ["{{base_url}}"],
           "path": ["api", "products"]
-        }
+        },
+        "description": "Get products with default pagination (page 1, limit 10)"
+      }
+    },
+    {
+      "name": "Get Products (with Pagination & Sorting)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "x-api-key",
+            "value": "{{api_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/products?page=1&limit=20&sort=price_desc",
+          "host": ["{{base_url}}"],
+          "path": ["api", "products"],
+          "query": [
+            {
+              "key": "page",
+              "value": "1",
+              "description": "Page number (min: 1)"
+            },
+            {
+              "key": "limit",
+              "value": "20",
+              "description": "Items per page (min: 1, max: 100)"
+            },
+            {
+              "key": "sort",
+              "value": "price_desc",
+              "description": "Sort order (price_asc, price_desc, title_asc, title_desc)"
+            }
+          ]
+        },
+        "description": "Get products with pagination and sorting options"
       }
     },
     {
@@ -64,7 +102,8 @@
           "raw": "{{base_url}}/api/products",
           "host": ["{{base_url}}"],
           "path": ["api", "products"]
-        }
+        },
+        "description": "Clear all products and cache"
       }
     }
   ],

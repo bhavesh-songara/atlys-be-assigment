@@ -6,6 +6,7 @@ A web scraper application for products with secure API endpoints.
 
 - Node.js (v14 or higher)
 - npm (v6 or higher)
+- Redis (v6 or higher)
 
 ## Installation
 
@@ -22,9 +23,16 @@ A web scraper application for products with secure API endpoints.
    ```
 
 3. Create a `.env` file in the root directory:
+
    ```env
    API_TOKEN=your-secure-api-token-here
    PORT=3000
+
+   # Redis Configuration
+   REDIS_HOST=localhost
+   REDIS_PORT=6379
+   REDIS_PASSWORD=
+   REDIS_TTL=3600
    ```
 
 ## Development
@@ -55,13 +63,92 @@ Request body:
 }
 ```
 
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Scraping completed successfully",
+  "data": {
+    "totalProducts": 50,
+    "priceChanges": [
+      {
+        "productTitle": "Example Product",
+        "oldPrice": 99.99,
+        "newPrice": 89.99,
+        "changePercentage": -10.0
+      }
+    ],
+    "cacheStats": {
+      "hits": 45,
+      "misses": 5,
+      "keys": 50
+    }
+  }
+}
+```
+
 ### GET /api/products
 
-Get all scraped products.
+Get all scraped products with pagination and sorting.
+
+Query Parameters:
+
+- `page` (optional): Page number (default: 1)
+- `limit` (optional): Items per page (default: 10, max: 100)
+- `sort` (optional): Sort order
+  - `price_asc`: Price ascending
+  - `price_desc`: Price descending
+  - `title_asc`: Title ascending
+  - `title_desc`: Title descending
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "products": [...],
+    "total": 50,
+    "page": 1,
+    "totalPages": 5,
+    "cacheStats": {
+      "hits": 45,
+      "misses": 5,
+      "keys": 50
+    }
+  }
+}
+```
 
 ### DELETE /api/products
 
-Clear all scraped products.
+Clear all scraped products and cache.
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "Products and cache cleared successfully"
+}
+```
+
+## Error Responses
+
+All endpoints return error responses in the following format:
+
+```json
+{
+  "success": false,
+  "errors": [
+    {
+      "field": "url",
+      "message": "Must be a valid URL"
+    }
+  ]
+}
+```
 
 ## Authentication
 
@@ -81,6 +168,7 @@ curl -H "x-api-key: your-secure-api-token-here" http://localhost:3000/api/produc
 - `npm run scrape` - Run the scraper directly
 - `npm run storage-example` - Run storage system example
 - `npm run notification-example` - Run notification system example
+- `npm run cache-example` - Run cache system example
 
 ## Project Structure
 
@@ -92,6 +180,7 @@ curl -H "x-api-key: your-secure-api-token-here" http://localhost:3000/api/produc
 │   ├── routes/        # API routes
 │   ├── services/      # Business logic
 │   ├── storage/       # Storage implementations
+│   ├── cache/         # Cache implementations
 │   ├── notifications/ # Notification system
 │   ├── types/         # TypeScript types
 │   ├── app.ts         # Express app setup
